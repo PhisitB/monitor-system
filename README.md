@@ -5,9 +5,10 @@ and an on-demand internet speedtest.
 
 - **Dashboard:** https://phisitb.github.io/monitor-system/ (static page on GitHub Pages)
 - **Local agent:** a small Python server on your machine at `http://127.0.0.1:8765` that the
-  dashboard reads from. Your metrics never leave your machine.
-
-The dashboard needs the agent running on the same machine you open it on.
+  dashboard reads from when opened on the same machine.
+- **Cloud mode (optional):** the agent also pushes the latest snapshot to Supabase every 5 s, so
+  you can open the dashboard on another device (e.g. your phone), log in by email link, and see it.
+  Without Supabase settings, nothing leaves your machine.
 
 ## Setup
 
@@ -32,6 +33,22 @@ time — allow it so the page can reach `127.0.0.1`.
 
 Options: `--port <n>` (default 8765; the dashboard expects 8765).
 
+## Cloud mode (view from other devices)
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. **SQL Editor:** run [`supabase/schema.sql`](supabase/schema.sql).
+3. **Table Editor → `allowed_viewers`:** add the email(s) allowed to view.
+4. **Authentication → URL Configuration:** set Site URL and add a Redirect URL:
+   `https://phisitb.github.io/monitor-system/`
+5. **Project Settings → API:**
+   - Project URL + publishable (anon) key → `web/config.js` (public by design)
+   - Secret (service_role) key → `.env` on the notebook only (copy `.env.example` to `.env`).
+     **Never commit it or put it in `web/`** — it bypasses all access rules.
+6. Restart the agent; it prints `[cloud] pushing to Supabase every 5s`.
+
+Optional hardening: **Authentication → Sign In / Providers → disable "Allow new users to sign up"**
+and invite viewers instead. (Without it, anyone can create an account, but RLS still shows them nothing.)
+
 ## Develop locally
 
 Serve `web/` from localhost (allowed by the agent's CORS rules):
@@ -52,12 +69,15 @@ cd agent
 - It answers only requests from `https://phisitb.github.io` and `localhost` origins, and rejects
   non-local `Host` headers (DNS rebinding). Other websites cannot read your metrics or process list.
 - The speedtest talks to `speed.cloudflare.com` only when you click the button.
+- Cloud mode sends all metrics (including process names) to your Supabase project. Only logged-in
+  emails listed in `allowed_viewers` can read them (Row Level Security); browsers cannot write.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `agent/` | Python agent (`psutil`); `winprocs.py` = fast Windows process snapshot |
-| `web/` | Dashboard (HTML/CSS/JS, Chart.js vendored in `web/vendor/`) |
+| `agent/` | Python agent (`psutil`); `winprocs.py` = fast Windows process snapshot; `cloud.py` = Supabase push |
+| `web/` | Dashboard (HTML/CSS/JS; Chart.js and supabase-js vendored in `web/vendor/`); `config.js` = Supabase public settings |
+| `supabase/schema.sql` | Tables + Row Level Security for cloud mode |
 | `.github/workflows/pages.yml` | Deploys `web/` to GitHub Pages on push to `main` |
 | `docs/` | Requirements and status |

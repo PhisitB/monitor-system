@@ -14,6 +14,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import psutil
 
+import cloud
+
 if psutil.WINDOWS:
     import winprocs
 
@@ -247,12 +249,15 @@ def main():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"port (default {DEFAULT_PORT})")
     args = parser.parse_args()
     server = make_server(args.port)
+    pusher = cloud.pusher_from_env(Handler.collector)
     print(f"Agent running at http://127.0.0.1:{args.port}/api/metrics  (Ctrl+C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
+        if pusher:
+            pusher.stop()
         server.server_close()
 
 

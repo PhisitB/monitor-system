@@ -4,13 +4,19 @@
 เว็บ dashboard สำหรับทดสอบการ monitor ทรัพยากรของ notebook เครื่องนี้ (local machine) แบบ real-time
 
 ## ผู้ใช้
-- ใช้คนเดียว บนเครื่องตัวเอง
+- เจ้าของเครื่อง ดูได้ทั้งบน notebook เอง และจากเครื่องอื่น (เช่นมือถือ) ผ่าน internet
+- ผู้ดูจากเครื่องอื่นต้อง login (magic link ทางอีเมล) และอีเมลต้องอยู่ใน allowlist
 
 ## Architecture (Hybrid)
 - **Dashboard (frontend):** host บน GitHub Pages ที่ `https://<username>.github.io/<repo>/`
 - **Local agent (backend):** Python รันบน notebook ที่ `http://127.0.0.1:<port>` คืนค่า metrics เป็น JSON
-- หน้า dashboard ดึงข้อมูลจาก local agent ผ่าน browser — ข้อมูลเครื่องไม่ถูกส่งขึ้น GitHub หรือ server ใด
+- บน notebook: dashboard ดึงข้อมูลจาก local agent โดยตรงทุก 2 s
+- **Cloud mode (เครื่องอื่น):** agent ส่ง snapshot ล่าสุดขึ้น Supabase ทุก 5 s (เก็บแค่ค่าล่าสุด 1 แถวต่อเครื่อง
+  ไม่เก็บประวัติ) dashboard บนเครื่องอื่นอ่านจาก Supabase หลัง login
+  - เปิดเมื่อมี `SUPABASE_URL` + `SUPABASE_SECRET_KEY` ใน `.env` เท่านั้น ไม่มี = local only
+  - ข้อมูลที่ขึ้น cloud: metrics ทั้งหมดรวมรายชื่อ process, ชื่อ CPU/OS, disk
 - ต้องเปิด agent ไว้ตอนใช้งาน ถ้า agent ไม่ทำงาน dashboard ต้องแสดงข้อความบอกชัดเจน
+  (cloud mode: ข้อมูลเก่ากว่า 30 s = แสดงว่า notebook ออฟไลน์)
 - Code ทั้งหมด backup ไว้ใน GitHub repo (public — จำเป็นสำหรับ GitHub Pages แบบฟรี)
 
 ## Metrics ที่ต้องแสดง
@@ -33,7 +39,9 @@
 
 ## Tech stack
 - **Backend:** Python 3 + `psutil` (อ่านค่าระบบ ใช้ได้ทั้ง Windows/macOS)
-- **Web server (agent):** ตัดสินใจตอนเริ่ม implement (stdlib `http.server` vs FastAPI) — ดู STATUS.md
+- **Web server (agent):** stdlib `http.server`
+- **Cloud:** Supabase (Postgres + Auth magic link); agent ใช้ `urllib` (ไม่มี dependency เพิ่ม),
+  dashboard ใช้ supabase-js (vendored)
 - **Frontend:** HTML/CSS/JavaScript ล้วน ไม่มี build step, deploy เป็น static files บน GitHub Pages
 - **Platform:** ต้องรันได้บน Windows (หลัก) และ macOS
 
@@ -41,12 +49,15 @@
 - Agent bind ที่ `127.0.0.1` เท่านั้น ไม่เปิดให้เครื่องอื่นในเครือข่ายเข้าถึง
 - Agent อนุญาต CORS เฉพาะ origin ของ GitHub Pages ของเรา (และ localhost สำหรับ dev) — ป้องกันเว็บอื่นอ่านข้อมูลเครื่อง/รายชื่อ process
 - รองรับ Private/Local Network Access ของ Chrome/Edge (preflight header ที่จำเป็น)
-- Repo เป็น public: ห้ามมี secret, IP, hostname หรือข้อมูลเครื่องใน code/commit
+- Repo เป็น public: ห้ามมี secret, IP, hostname, อีเมลผู้ดู หรือข้อมูลเครื่องใน code/commit
+- Supabase: Row Level Security เปิดทุกตาราง; อ่าน `device_metrics` ได้เฉพาะอีเมลใน `allowed_viewers`;
+  client เขียนไม่ได้ (เขียนได้เฉพาะ agent ด้วย secret key ที่อยู่ใน `.env` บน notebook เท่านั้น)
+- Publishable/anon key อยู่ใน `web/config.js` ได้ (เป็น public key โดยออกแบบ)
 - Speedtest เป็นการเชื่อมต่อ server ภายนอก — ทำเฉพาะเมื่อผู้ใช้กดปุ่ม และไม่ส่งข้อมูลส่วนตัวใด ๆ
 
 ## Out of scope
-- ไม่เก็บประวัติลงไฟล์หรือ database
+- ไม่เก็บประวัติลงไฟล์หรือ database (cloud เก็บแค่ snapshot ล่าสุด)
 - ไม่ monitor เครื่องอื่น / อุปกรณ์เครือข่าย
-- ไม่มีระบบ login / ผู้ใช้หลายคน
+- ไม่มีระบบจัดการผู้ใช้ในหน้าเว็บ (เพิ่ม/ลบผู้ดูทำใน Supabase Dashboard)
 - ไม่มีการแจ้งเตือน (LINE, Email ฯลฯ)
 - ไม่มีการสั่งงานหรือแก้ไขระบบจาก dashboard

@@ -12,6 +12,7 @@
     <div class="top-right">
       <span id="status" class="pill pill-wait" role="status"><span class="dot"></span><span id="status-text">กำลังเชื่อมต่อ agent…</span></span>
       <span id="updated" class="muted"></span>
+      <button id="logout" type="button" class="ghost" hidden>ออกจากระบบ</button>
     </div>
   </header>
 
@@ -20,6 +21,17 @@
     <p>เปิด agent บนเครื่องนี้ก่อน แล้วหน้านี้จะเชื่อมต่อเองอัตโนมัติ:</p>
     <pre>python agent/agent.py</pre>
     <p class="muted">ถ้า browser ถามขออนุญาตเข้าถึงอุปกรณ์ในเครือข่าย (Local network access) ให้กด Allow</p>
+    <p id="offline-detail" class="muted"></p>
+  </section>
+
+  <section id="login" class="banner banner-info" hidden>
+    <strong>เข้าสู่ระบบเพื่อดูข้อมูลจาก cloud</strong>
+    <p>ไม่พบ agent บนเครื่องนี้ ใส่อีเมลที่ได้รับสิทธิ์ แล้วกดลิงก์ที่ส่งไปทางอีเมลเพื่อเข้าสู่ระบบ</p>
+    <form id="login-form" class="login-form">
+      <input id="login-email" type="email" required placeholder="you@example.com" autocomplete="email">
+      <button type="submit">ส่งลิงก์เข้าสู่ระบบ</button>
+    </form>
+    <p id="login-msg" class="muted" aria-live="polite"></p>
   </section>
 
   <main id="dash" class="grid">
@@ -92,6 +104,8 @@
   </main>
 
   <script src="vendor/chart.umd.min.js"></script>
+  <script src="vendor/supabase.umd.js"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

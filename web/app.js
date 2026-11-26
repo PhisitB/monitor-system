@@ -162,28 +162,110 @@ function render(m) {
   $("updated").textContent = `อัปเดตล่าสุด ${label}`;
 }
 
-function setConnected(ok, detail) {
+// ---------- data sources: local agent first, then Supabase (other devices) ----------
+const CLOUD_POLL_MS = 5000;        // agent pushes every 5 s
+const STALE_SEC = 30;              // cloud data older than this = notebook offline
+const LOCAL_RETRY_MS = 60000;      // after a local failure, re-check local this often
+const cfg = window.MONITOR_CONFIG || {};
+const cloud = cfg.supabaseUrl && cfg.supabaseKey && window.supabase
+  ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey) : null;
+
+let lastTimestamp = null;
+let lastLocalFail = 0;
+
+function renderIfNew(m) {
+  if (m.timestamp === lastTimestamp) return; // same cloud snapshot polled twice
+  lastTimestamp = m.timestamp;
+  render(m);
+}
+
+// state: local | cloud | cloud-stale | login | offline | cloud-error
+function setState(state, detail = "") {
   const pill = $("status");
-  pill.className = `pill ${ok ? "pill-ok" : "pill-bad"}`;
-  $("status-text").textContent = ok ? "เชื่อมต่อ agent แล้ว" : "ไม่พบ agent";
-  pill.title = detail || "";
-  $("offline").hidden = ok;
+  const ok = state === "local" || state === "cloud";
+  pill.className = `pill ${ok ? "pill-ok" : state === "login" ? "pill-wait" : "pill-bad"}`;
+  $("status-text").textContent = {
+    local: "เชื่อมต่อ agent (เครื่องนี้)",
+    cloud: `ข้อมูลจาก cloud · ${detail}`,
+    "cloud-stale": "notebook ออฟไลน์",
+    login: "ต้องเข้าสู่ระบบ",
+    offline: "ไม่พบ agent",
+    "cloud-error": "ดึงข้อมูลจาก cloud ไม่สำเร็จ",
+  }[state];
+  pill.title = detail;
+  $("offline").hidden = !(state === "offline" || state === "cloud-error" || state === "cloud-stale");
+  $("offline-detail").textContent = state === "offline" ? "" : detail;
+  $("login").hidden = state !== "login";
+  $("logout").hidden = !(state === "cloud" || state === "cloud-stale" || state === "cloud-error");
   for (const card of document.querySelectorAll("#dash > section:not(:last-child)")) card.classList.toggle("stale", !ok);
 }
 
-async function poll() {
-  try {
-    // targetAddressSpace: Chrome Local Network Access hint; ignored by other browsers.
-    const res = await fetch(AGENT_URL, { cache: "no-store", targetAddressSpace: "loopback", signal: AbortSignal.timeout(5000) });
-    if (!res.ok) throw new Error(`agent ตอบกลับ HTTP ${res.status}`);
-    render(await res.json());
-    setConnected(true);
-  } catch (err) {
-    console.warn("agent poll failed:", err);
-    setConnected(false, String(err));
-  } finally {
-    setTimeout(poll, POLL_MS);
+async function fetchLocal() {
+  // targetAddressSpace: Chrome Local Network Access hint; ignored by other browsers.
+  const res = await fetch(AGENT_URL, { cache: "no-store", targetAddressSpace: "loopback", signal: AbortSignal.timeout(3000) });
+  if (!res.ok) throw new Error(`agent ตอบกลับ HTTP ${res.status}`);
+  return res.json();
+}
+
+async function pollCloud() {
+  const { data: { session } } = await cloud.auth.getSession();
+  if (!session) return setState("login");
+  const { data, error } = await cloud.from("device_metrics")
+    .select("device_id, data, updated_at").order("updated_at", { ascending: false }).limit(1);
+  if (error) throw new Error(error.message);
+  if (!data.length) {
+    return setState("cloud-error", `บัญชี ${session.user.email} ยังไม่มีสิทธิ์ดูข้อมูล หรือ agent ยังไม่เคยส่งข้อมูลขึ้น cloud`);
   }
+  const row = data[0];
+  renderIfNew(row.data);
+  const ageSec = (Date.now() - Date.parse(row.updated_at)) / 1000;
+  if (ageSec > STALE_SEC) {
+    setState("cloud-stale", `ข้อมูลล่าสุดจาก ${row.device_id} เมื่อ ${new Date(row.updated_at).toLocaleString("th-TH")} — agent บน notebook อาจปิดอยู่หรือไม่มี internet`);
+  } else {
+    setState("cloud", row.device_id);
+  }
+}
+
+async function poll() {
+  let delay = POLL_MS;
+  try {
+    const tryLocal = !cloud || Date.now() - lastLocalFail > LOCAL_RETRY_MS;
+    if (tryLocal) {
+      try {
+        renderIfNew(await fetchLocal());
+        setState("local");
+        return;
+      } catch (err) {
+        console.warn("local agent not reachable:", err);
+        lastLocalFail = Date.now();
+        if (!cloud) return setState("offline", String(err));
+      }
+    }
+    delay = CLOUD_POLL_MS;
+    await pollCloud();
+  } catch (err) {
+    console.error("cloud poll failed:", err);
+    setState("cloud-error", err.message);
+  } finally {
+    setTimeout(poll, delay);
+  }
+}
+
+if (cloud) {
+  $("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = $("login-email").value.trim();
+    $("login-msg").textContent = "กำลังส่งลิงก์…";
+    const { error } = await cloud.auth.signInWithOtp({
+      email, options: { emailRedirectTo: location.origin + location.pathname },
+    });
+    $("login-msg").textContent = error ? `ส่งไม่สำเร็จ: ${error.message}` : `ส่งลิงก์ไปที่ ${email} แล้ว เปิดอีเมลแล้วกดลิงก์บนอุปกรณ์นี้`;
+  });
+  $("logout").addEventListener("click", async () => {
+    await cloud.auth.signOut();
+    lastTimestamp = null;
+    setState("login");
+  });
 }
 poll();
 
