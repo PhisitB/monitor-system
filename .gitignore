@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets / local config
+.env
+.env.*
+
+# Editor / OS
+.vscode/
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
