@@ -31,6 +31,18 @@ def origin_allowed(origin):
     return origin in ALLOWED_ORIGINS or bool(LOCAL_ORIGIN_RE.match(origin))
 
 
+def cpu_model():
+    """Marketing CPU name; platform.processor() on Windows gives only family/model numbers."""
+    if psutil.WINDOWS:
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0") as key:
+                return winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
+        except OSError:
+            pass  # fall back below
+    return platform.processor()
+
+
 def process_snapshot():
     """Return {(pid, create_time): (pid, name, cpu_seconds, rss_bytes)}."""
     if psutil.WINDOWS:
@@ -172,7 +184,7 @@ class MetricsCollector:
         return {
             "os": f"{platform.system()} {platform.release()}",
             "os_version": platform.version(),
-            "cpu_model": platform.processor(),
+            "cpu_model": cpu_model(),
             "boot_time": boot,
             "uptime_sec": time.time() - boot,
         }
