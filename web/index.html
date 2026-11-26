@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monitor System</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Monitor System</h1>
+    <div class="top-right">
+      <span id="status" class="pill pill-wait" role="status"><span class="dot"></span><span id="status-text">กำลังเชื่อมต่อ agent…</span></span>
+      <span id="updated" class="muted"></span>
+    </div>
+  </header>
+
+  <section id="offline" class="banner" hidden>
+    <strong>⚠ ไม่พบ local agent ที่ <code>127.0.0.1:8765</code></strong>
+    <p>เปิด agent บนเครื่องนี้ก่อน แล้วหน้านี้จะเชื่อมต่อเองอัตโนมัติ:</p>
+    <pre>python agent/agent.py</pre>
+    <p class="muted">ถ้า browser ถามขออนุญาตเข้าถึงอุปกรณ์ในเครือข่าย (Local network access) ให้กด Allow</p>
+  </section>
+
+  <main id="dash" class="grid">
+    <section class="tiles span-all">
+      <div class="tile"><div class="tile-label">CPU</div><div class="tile-value" id="t-cpu">–</div><div class="tile-sub" id="t-cpu-sub"></div></div>
+      <div class="tile"><div class="tile-label">Memory</div><div class="tile-value" id="t-mem">–</div><div class="tile-sub" id="t-mem-sub"></div></div>
+      <div class="tile"><div class="tile-label">Download</div><div class="tile-value" id="t-down">–</div><div class="tile-sub">network ขาเข้า</div></div>
+      <div class="tile"><div class="tile-label">Upload</div><div class="tile-value" id="t-up">–</div><div class="tile-sub">network ขาออก</div></div>
+      <div class="tile"><div class="tile-label">Battery</div><div class="tile-value" id="t-bat">–</div><div class="tile-sub" id="t-bat-sub"></div></div>
+    </section>
+
+    <section class="card">
+      <h2>CPU usage <span class="muted">(%, 5 นาทีล่าสุด)</span></h2>
+      <div class="chart"><canvas id="c-cpu" aria-label="กราฟ CPU usage"></canvas></div>
+      <h3>ราย core</h3>
+      <div id="cores" class="cores"></div>
+    </section>
+
+    <section class="card">
+      <h2>Memory usage <span class="muted">(%, 5 นาทีล่าสุด)</span></h2>
+      <div class="chart"><canvas id="c-mem" aria-label="กราฟ Memory usage"></canvas></div>
+      <dl class="kv" id="mem-detail"></dl>
+    </section>
+
+    <section class="card">
+      <h2>Network throughput</h2>
+      <div class="chart"><canvas id="c-net" aria-label="กราฟ Network download และ upload"></canvas></div>
+    </section>
+
+    <section class="card">
+      <h2>Disk I/O</h2>
+      <div class="chart"><canvas id="c-disk" aria-label="กราฟ Disk read และ write"></canvas></div>
+    </section>
+
+    <section class="card">
+      <h2>Disk usage</h2>
+      <div id="disks"></div>
+    </section>
+
+    <section class="card">
+      <h2>System info</h2>
+      <dl class="kv" id="sysinfo"></dl>
+    </section>
+
+    <section class="card span-all">
+      <h2>Top processes</h2>
+      <div class="two-col">
+        <div>
+          <h3>ใช้ CPU มากที่สุด</h3>
+          <table><thead><tr><th>Process</th><th class="num">PID</th><th class="num">CPU</th><th class="num">RAM</th></tr></thead><tbody id="p-cpu"></tbody></table>
+        </div>
+        <div>
+          <h3>ใช้ RAM มากที่สุด</h3>
+          <table><thead><tr><th>Process</th><th class="num">PID</th><th class="num">CPU</th><th class="num">RAM</th></tr></thead><tbody id="p-mem"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card span-all">
+      <h2>Internet speedtest</h2>
+      <p class="muted">ทดสอบกับ Cloudflare (speed.cloudflare.com) ทำงานเฉพาะเมื่อกดปุ่ม ไม่ต้องใช้ agent — ผลเป็นค่าโดยประมาณ</p>
+      <button id="st-btn" type="button">เริ่มทดสอบ</button>
+      <span id="st-state" class="muted" aria-live="polite"></span>
+      <div class="tiles st-tiles">
+        <div class="tile"><div class="tile-label">Ping</div><div class="tile-value" id="st-ping">–</div></div>
+        <div class="tile"><div class="tile-label">Download</div><div class="tile-value" id="st-down">–</div></div>
+        <div class="tile"><div class="tile-label">Upload</div><div class="tile-value" id="st-up">–</div></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="vendor/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

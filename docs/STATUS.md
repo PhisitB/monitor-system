@@ -13,6 +13,13 @@ _Last updated: 2026-11-26_
     แทน psutil ที่ใช้ ~7 s เพราะ process ของ SYSTEM/service)
   - CPU % คำนวณเองจาก `cpu_times` (psutil `cpu_percent(None)` เก็บ state ต่อ thread → ได้ 0% ใน ThreadingHTTPServer)
   - Tests: `agent/test_agent.py` (11 tests)
+  - CPU model อ่านจาก registry บน Windows (platform.processor() ให้แค่ family/model)
+- Dashboard (`web/`): stat tiles, กราฟ CPU/Memory/Network/Disk I/O ย้อนหลัง 5 นาที (poll ทุก 2 s),
+  ราย core, disk usage (เตือน ≥ 90%), system info, top processes, speedtest (Cloudflare), banner เมื่อไม่พบ agent
+  - Chart.js 4.6.2 vendored ที่ `web/vendor/` (ตรวจ sha512 กับ npm registry แล้ว)
+  - ตรวจด้วย headless Edge screenshot แล้ว (ทั้งสถานะ connected และ offline)
+- GitHub Actions workflow deploy `web/` ขึ้น Pages (`.github/workflows/pages.yml`)
+- README: วิธีติดตั้ง/รัน (Windows/macOS)
 
 ## Decided
 - Python + psutil, real-time only, frontend ไม่มี build step
@@ -22,8 +29,10 @@ _Last updated: 2026-11-26_
 - กราฟใช้ Chart.js เก็บไฟล์ไว้ใน repo (ไม่ใช้ CDN)
 
 ## Remaining
-- [ ] Frontend: dashboard + กราฟ real-time + สถานะ "agent ไม่ได้รัน"
-- [ ] Speedtest (กดปุ่ม)
-- [ ] เปิด GitHub Pages
-- [ ] README: วิธีติดตั้งและรัน agent (Windows/macOS)
+- [ ] เปิด GitHub Pages (Settings → Pages → Source: GitHub Actions) แล้วทดสอบ dashboard จาก github.io กับ agent จริง
+- [ ] ทดสอบ speedtest ใน browser จริง (endpoint CORS ตรวจด้วย curl แล้ว แต่ยังไม่ได้กดใน browser)
 - [ ] ทดสอบ agent บน macOS (ยังไม่ได้ทดสอบ — path ที่ไม่ใช่ Windows ใช้ psutil ล้วน)
+
+## Known limitations
+- CPU clock บน Windows: psutil รายงานแค่ base clock (ไม่ใช่ turbo/ปัจจุบันจริง)
+- Safari อาจบล็อกการเรียก `http://127.0.0.1` จากหน้า https (ใช้ Chrome/Edge/Firefox)
