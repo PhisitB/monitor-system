@@ -41,3 +41,7 @@ create policy "allowed viewers can read metrics"
   using (public.is_allowed_viewer());
 
 -- No insert/update/delete policies: only the agent's secret key (bypasses RLS) can write.
+
+-- Newer projects don't auto-grant table privileges to API roles; grant only what's needed.
+grant select, insert, update on public.device_metrics to service_role;
+grant select on public.device_metrics to authenticated;

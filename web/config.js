@@ -3,6 +3,6 @@
 // to emails in allowed_viewers. NEVER put the secret / service_role key here.
 // Leave empty to disable cloud mode (local agent only).
 window.MONITOR_CONFIG = {
-  supabaseUrl: "",
-  supabaseKey: "",
+  supabaseUrl: "https://cutgtieqvzavdxpnaoqf.supabase.co",
+  supabaseKey: "sb_publishable_zKiLC0Tvv35bAY8z2pPa4A_23HtBLGd",
 };
