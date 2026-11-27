@@ -7,7 +7,7 @@ const SPEED_URL = "https://speed.cloudflare.com";
 
 const $ = (id) => document.getElementById(id);
 
-// ---------- formatting ----------
+// ---------- formatting & thresholds ----------
 function fmtBytes(n) {
   if (n == null) return "–";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -23,14 +23,72 @@ function fmtDuration(sec) {
 }
 const timeLabel = (ts) => new Date(ts * 1000).toLocaleTimeString("th-TH", { hour12: false });
 
-// ---------- charts ----------
+function usageLevel(pct) {
+  if (pct == null) return "";
+  if (pct >= 90) return "crit";
+  if (pct >= 70) return "warn";
+  return "good";
+}
+
+function batteryLevel(b) {
+  if (!b || b.percent == null) return "";
+  if (b.plugged) return "good";
+  if (b.percent <= 20) return "crit";
+  if (b.percent <= 35) return "warn";
+  return "good";
+}
+
+function setTileMeter(barId, dotId, pct, level) {
+  const barSpan = $(barId), dot = $(dotId);
+  if (barSpan) {
+    barSpan.style.width = `${Math.min(Math.max(pct ?? 0, 0), 100)}%`;
+    barSpan.className = level;
+  }
+  if (dot) dot.className = `level-dot ${level}`;
+}
+
+// ---------- theme & charts ----------
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const charts = [];
+
+function hexToRgba(color, alpha) {
+  const c = color.trim();
+  if (c.startsWith("#") && (c.length === 7 || c.length === 4)) {
+    const h = c.length === 4 ? `${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}` : c.slice(1);
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return c;
+}
+
+function areaGradient(context, cssVar) {
+  const { ctx, chartArea } = context.chart;
+  const color = css(cssVar);
+  if (!chartArea) return hexToRgba(color, 0.14);
+  const grad = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+  grad.addColorStop(0, hexToRgba(color, 0.24));
+  grad.addColorStop(1, hexToRgba(color, 0.0));
+  return grad;
+}
 
 function makeChart(canvasId, series, { percent = false } = {}) {
   const chart = new Chart($(canvasId), {
     type: "line",
-    data: { labels: [], datasets: series.map((s) => ({ label: s.label, data: [], borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.25, _color: s.color })) },
+    data: {
+      labels: [],
+      datasets: series.map((s) => ({
+        label: s.label,
+        data: [],
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBorderWidth: 2,
+        tension: 0.3,
+        fill: true,
+        _color: s.color,
+        backgroundColor: (ctx) => areaGradient(ctx, s.color),
+      })),
+    },
     options: {
       animation: false,
       responsive: true,
@@ -42,12 +100,18 @@ function makeChart(canvasId, series, { percent = false } = {}) {
           beginAtZero: true,
           max: percent ? 100 : undefined,
           suggestedMax: percent ? undefined : 1024, // empty rate chart: 0–1 KB/s instead of repeated "1 B/s"
-          ticks: { maxTicksLimit: 5, callback: (v) => (percent ? `${v}%` : fmtRate(v)) },
+          border: { dash: [4, 4] },
+          ticks: { maxTicksLimit: 5, padding: 6, callback: (v) => (percent ? `${v}%` : fmtRate(v)) },
         },
       },
       plugins: {
-        legend: { display: series.length > 1, position: "top", align: "end", labels: { boxWidth: 12, boxHeight: 2 } },
-        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${percent ? fmtPct(c.parsed.y) : fmtRate(c.parsed.y)}` } },
+        legend: { display: series.length > 1, position: "top", align: "end", labels: { boxWidth: 10, boxHeight: 3, useBorderRadius: true, borderRadius: 2 } },
+        tooltip: {
+          cornerRadius: 8,
+          padding: 10,
+          usePointStyle: true,
+          callbacks: { label: (c) => ` ${c.dataset.label}: ${percent ? fmtPct(c.parsed.y) : fmtRate(c.parsed.y)}` },
+        },
       },
     },
   });
@@ -55,18 +119,38 @@ function makeChart(canvasId, series, { percent = false } = {}) {
   return chart;
 }
 
+function isDarkTheme() {
+  const override = document.documentElement.dataset.theme;
+  if (override === "dark") return true;
+  if (override === "light") return false;
+  return matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
 function applyTheme() {
   const text2 = css("--text-secondary"), grid = css("--grid"), axis = css("--axis");
+  const tipBg = css("--tooltip-bg"), tipText = css("--tooltip-text");
   Chart.defaults.color = text2;
   Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
   for (const chart of charts) {
     for (const ds of chart.data.datasets) {
-      ds.borderColor = ds.backgroundColor = css(ds._color);
+      const lineColor = css(ds._color);
+      ds.borderColor = lineColor;
+      ds.pointHoverBackgroundColor = lineColor;
+      ds.pointHoverBorderColor = css("--surface-1");
     }
     chart.options.scales.y.grid.color = grid;
-    chart.options.scales.y.border = { color: axis };
+    chart.options.scales.y.border = { color: axis, dash: [4, 4] };
     chart.options.scales.x.border = { color: axis };
+    chart.options.plugins.tooltip.backgroundColor = tipBg;
+    chart.options.plugins.tooltip.titleColor = tipText;
+    chart.options.plugins.tooltip.bodyColor = tipText;
     chart.update("none");
+  }
+  const btn = $("theme-btn");
+  if (btn) {
+    const dark = isDarkTheme();
+    btn.title = dark ? "สลับเป็นโหมดสว่าง (Light)" : "สลับเป็นโหมดมืด (Dark)";
+    btn.setAttribute("aria-label", btn.title);
   }
 }
 
@@ -76,6 +160,12 @@ const netChart = makeChart("c-net", [{ label: "Download", color: "--series-1" },
 const diskChart = makeChart("c-disk", [{ label: "Read", color: "--series-1" }, { label: "Write", color: "--series-2" }]);
 applyTheme();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+$("theme-btn")?.addEventListener("click", () => {
+  const next = isDarkTheme() ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("monitor-theme", next); } catch (_) {}
+  applyTheme();
+});
 
 function pushPoint(chart, label, values) {
   chart.data.labels.push(label);
@@ -96,7 +186,7 @@ function el(tag, attrs = {}, ...children) {
   for (const c of children) node.append(c);
   return node;
 }
-const bar = (pct, crit = false) => el("div", { class: crit ? "bar crit" : "bar" }, el("span", { style: `width:${Math.min(pct, 100)}%` }));
+const bar = (pct, level = "") => el("div", { class: level ? `bar ${level}` : "bar" }, el("span", { style: `width:${Math.min(Math.max(pct ?? 0, 0), 100)}%` }));
 
 function renderKV(dl, pairs) {
   dl.replaceChildren(...pairs.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
@@ -108,17 +198,24 @@ function render(m) {
 
   $("t-cpu").textContent = fmtPct(m.cpu.percent);
   $("t-cpu-sub").textContent = m.cpu.freq_mhz ? `${(m.cpu.freq_mhz / 1000).toFixed(2)} GHz` : "";
+  setTileMeter("b-cpu", "d-cpu", m.cpu.percent, usageLevel(m.cpu.percent));
+
   $("t-mem").textContent = fmtPct(m.memory.percent);
   $("t-mem-sub").textContent = `${fmtBytes(m.memory.used)} / ${fmtBytes(m.memory.total)}`;
+  setTileMeter("b-mem", "d-mem", m.memory.percent, usageLevel(m.memory.percent));
+
   $("t-down").textContent = fmtRate(m.network?.bytes_recv_per_sec);
   $("t-up").textContent = fmtRate(m.network?.bytes_sent_per_sec);
+
   if (m.battery) {
     $("t-bat").textContent = `${Math.round(m.battery.percent)}%`;
     $("t-bat-sub").textContent = m.battery.plugged ? "🔌 กำลังชาร์จ / เสียบสาย" :
       m.battery.secs_left ? `ใช้ได้อีก ~${fmtDuration(m.battery.secs_left)}` : "ใช้แบตเตอรี่";
+    setTileMeter("b-bat", "d-bat", m.battery.percent, batteryLevel(m.battery));
   } else {
     $("t-bat").textContent = "–";
     $("t-bat-sub").textContent = "ไม่พบแบตเตอรี่";
+    setTileMeter("b-bat", "d-bat", 0, "");
   }
 
   pushPoint(cpuChart, label, [m.cpu.percent]);
@@ -127,7 +224,7 @@ function render(m) {
   pushPoint(diskChart, label, [m.disk_io?.read_bytes_per_sec ?? null, m.disk_io?.write_bytes_per_sec ?? null]);
 
   $("cores").replaceChildren(...m.cpu.per_core.map((p, i) =>
-    el("div", { class: "core" }, el("span", { class: "muted" }, `#${i}`), bar(p), el("span", { class: "num" }, `${Math.round(p)}%`))));
+    el("div", { class: "core" }, el("span", { class: "muted" }, `#${i}`), bar(p, usageLevel(p)), el("span", { class: "num" }, `${Math.round(p)}%`))));
 
   renderKV($("mem-detail"), [
     ["ใช้ไป", `${fmtBytes(m.memory.used)} จาก ${fmtBytes(m.memory.total)}`],
@@ -136,12 +233,12 @@ function render(m) {
 
   $("disks").replaceChildren(...m.disks.map((d) => {
     if (d.error) return el("div", { class: "disk" }, el("div", { class: "disk-head" }, el("strong", {}, d.mount), el("span", { class: "muted" }, `อ่านไม่ได้: ${d.error}`)));
-    const crit = d.percent >= 90;
+    const level = usageLevel(d.percent);
     return el("div", { class: "disk" },
       el("div", { class: "disk-head" },
         el("strong", {}, `${d.mount} `, el("span", { class: "muted" }, d.fstype)),
-        el("span", {}, crit ? el("span", { class: "warn-label" }, "⚠ เกือบเต็ม ") : "", `${fmtBytes(d.used)} / ${fmtBytes(d.total)} (${fmtPct(d.percent)}) · เหลือ ${fmtBytes(d.free)}`)),
-      bar(d.percent, crit));
+        el("span", {}, level === "crit" ? el("span", { class: "warn-label" }, "⚠ เกือบเต็ม ") : "", `${fmtBytes(d.used)} / ${fmtBytes(d.total)} (${fmtPct(d.percent)}) · เหลือ ${fmtBytes(d.free)}`)),
+      bar(d.percent, level));
   }));
 
   const maxGhz = m.cpu.freq_max_mhz > 0 ? ` (max ${(m.cpu.freq_max_mhz / 1000).toFixed(2)} GHz)` : "";

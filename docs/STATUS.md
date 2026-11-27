@@ -20,6 +20,7 @@ _Last updated: 2026-11-27_
   - Chart.js 4.6.2 vendored ที่ `web/vendor/` (ตรวจ sha512 กับ npm registry แล้ว)
   - ตรวจด้วย headless Edge screenshot แล้ว (ทั้งสถานะ connected และ offline)
   - Hardening (2026-11-27): กัน `cores_physical`/`freq_max_mhz` เป็น `null`/`0`, เพิ่ม timeout ให้ speedtest, ฟัง `onAuthStateChange` หลัง login magic link
+  - UI refresh (2026-11-27): ปรับ layout เป็น Bento grid, เพิ่ม threshold indicators (good/warn/crit) และปุ่มสลับธีม Light/Dark
 - GitHub Actions workflow deploy `web/` ขึ้น Pages (`.github/workflows/pages.yml`)
 - README: วิธีติดตั้ง/รัน (Windows/macOS)
 
