@@ -21,6 +21,11 @@ _Last updated: 2026-11-27_
   - ตรวจด้วย headless Edge screenshot แล้ว (ทั้งสถานะ connected และ offline)
   - Hardening (2026-11-27): กัน `cores_physical`/`freq_max_mhz` เป็น `null`/`0`, เพิ่ม timeout ให้ speedtest, ฟัง `onAuthStateChange` หลัง login magic link
   - UI refresh (2026-11-27): ปรับ layout เป็น Bento grid, เพิ่ม threshold indicators (good/warn/crit) และปุ่มสลับธีม Light/Dark
+- หลายเครื่อง / VPS Windows Server (2026-11-27):
+  - Dashboard มีตัวเลือกเครื่องใน header (จำค่าใน localStorage); "อัตโนมัติ" = local agent ก่อน แล้วค่อยเครื่องแรกใน cloud;
+    เลือกเครื่องเฉพาะ = อ่านจาก cloud เสมอ; สลับเครื่องแล้วล้างกราฟเดิม
+  - ตรวจด้วย headless Edge + Supabase จำลอง (2 เครื่อง): เลือก vps / อัตโนมัติ (local) / ยังไม่ login ถูกต้องทั้ง 3 กรณี
+  - `agent/register-autostart-server.ps1`: task ตอน boot แบบ S4U (ไม่ต้องมีคน logon), ต้อง admin, บังคับให้มี `DEVICE_ID` ใน `.env`
 - GitHub Actions workflow deploy `web/` ขึ้น Pages (`.github/workflows/pages.yml`)
 - README: วิธีติดตั้ง/รัน (Windows/macOS)
 
@@ -41,6 +46,8 @@ _Last updated: 2026-11-27_
 - กราฟใช้ Chart.js เก็บไฟล์ไว้ใน repo (ไม่ใช้ CDN)
 
 - ดูจากเครื่องอื่นผ่าน internet: Supabase + magic link + allowlist อีเมล (ทางเลือก Tailscale / Cloudflare Tunnel ถูกปัดตก)
+- Monitor VPS ของตัวเอง: ใช้ Supabase project เดิม + ตัวเลือกเครื่องใน dashboard (ทางเลือกแยก project / RDP ถูกปัดตก);
+  ยอมรับความเสี่ยงที่ secret key อยู่บน VPS
 
 ## Remaining
 - [ ] รันส่วน trigger `device_metrics_set_updated_at` ใน `supabase/schema.sql` บน Supabase SQL Editor เพื่อให้อัปเดต `updated_at` ด้วยเวลา server
@@ -51,6 +58,8 @@ _Last updated: 2026-11-27_
       ตรวจแล้ว: register (ไม่ต้อง admin) + `schtasks /run` → agent ตอบ 200 ที่ 8765, CORS/PNA preflight ผ่าน, log เขียนลงไฟล์
       เหลือ: ยืนยันหลัง sign out / sign in จริง (trigger หน่วง 30 s)
 - [ ] ทดสอบ speedtest ใน browser จริง (endpoint CORS ตรวจด้วย curl แล้ว แต่ยังไม่ได้กดใน browser)
+- [ ] ติดตั้งและทดสอบบน VPS Windows Server จริง (`register-autostart-server.ps1` ยังไม่เคยรันจริง — ตรวจแค่ syntax/XML)
+- [ ] ทดสอบตัวเลือกเครื่องกับ Supabase จริงเมื่อมี 2 เครื่อง push พร้อมกัน
 - [ ] ทดสอบ agent บน macOS (ยังไม่ได้ทดสอบ — path ที่ไม่ใช่ Windows ใช้ psutil ล้วน)
 
 ## Known limitations

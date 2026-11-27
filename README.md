@@ -82,6 +82,30 @@ The task runs `pythonw.exe` (no console window) with the project root as working
 
 > **Note:** If you move the project folder, re-run `register-autostart.ps1` to update the paths.
 
+## Monitoring a Windows Server (VPS)
+
+The same agent runs on Windows Server. View it through cloud mode — never expose port 8765 to the internet.
+
+1. Install Python 3.12 and Git on the server, then clone the repo and set up the venv as above.
+2. Create `.env` with `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and a **unique** `DEVICE_ID` (e.g. `DEVICE_ID=vps`).
+   Each machine needs its own `DEVICE_ID`, otherwise they overwrite each other's row.
+3. Allow outbound HTTPS to `*.supabase.co` in the server firewall.
+4. Test once in a console: `.venv\Scripts\python agent\agent.py` — look for `[cloud] pushing to Supabase`.
+5. From an **elevated** PowerShell, register the boot-time task (runs without anyone logged on):
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File agent\register-autostart-server.ps1
+   schtasks /run /tn MonitorAgent
+   ```
+
+   Remove it with `agent\unregister-autostart.ps1`. Output goes to `agent\agent.log`.
+
+6. On the dashboard, log in and pick the machine from the device selector in the header.
+   "อัตโนมัติ" uses the local agent first, then the first cloud device.
+
+> **Security:** `SUPABASE_SECRET_KEY` bypasses Row Level Security. If the server is compromised, everything
+> in the Supabase project can be read and written. Keep the server patched and `.env` readable only by your account.
+
 ## Security notes
 
 - The agent binds to `127.0.0.1` only and is read-only.

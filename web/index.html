@@ -29,6 +29,7 @@
         </div>
       </div>
       <div class="top-right">
+        <select id="device" class="device-select" aria-label="เลือกเครื่องที่จะดู" title="เลือกเครื่องที่จะดู" hidden></select>
         <span id="status" class="pill pill-wait" role="status"><span class="dot"></span><span id="status-text">กำลังเชื่อมต่อ agent…</span></span>
         <span id="updated" class="muted meta-time"></span>
         <button id="theme-btn" type="button" class="icon-btn" aria-label="สลับโหมดสี Light/Dark" title="สลับโหมดสี">
@@ -55,7 +56,7 @@
 
   <section id="login" class="banner banner-info" hidden>
     <strong>เข้าสู่ระบบเพื่อดูข้อมูลจาก cloud</strong>
-    <p>ไม่พบ agent บนเครื่องนี้ ใส่อีเมลที่ได้รับสิทธิ์ แล้วกดลิงก์ที่ส่งไปทางอีเมลเพื่อเข้าสู่ระบบ</p>
+    <p>ไม่พบ agent บนเครื่องนี้ หรือเลือกดูเครื่องอื่นอยู่ ใส่อีเมลที่ได้รับสิทธิ์ แล้วกดลิงก์ที่ส่งไปทางอีเมลเพื่อเข้าสู่ระบบ</p>
     <form id="login-form" class="login-form">
       <input id="login-email" type="email" required placeholder="you@example.com" autocomplete="email">
       <button type="submit">ส่งลิงก์เข้าสู่ระบบ</button>

@@ -262,19 +262,65 @@ function render(m) {
 
 // ---------- data sources: local agent first, then Supabase (other devices) ----------
 const CLOUD_POLL_MS = 5000;        // agent pushes every 5 s
-const STALE_SEC = 30;              // cloud data older than this = notebook offline
+const STALE_SEC = 30;              // cloud data older than this = device offline
 const LOCAL_RETRY_MS = 60000;      // after a local failure, re-check local this often
+const DEVICE_LIST_MS = 30000;      // in local mode, refresh the cloud device list this often
+const DEVICE_KEY = "monitor-device";
 const cfg = window.MONITOR_CONFIG || {};
 const cloud = cfg.supabaseUrl && cfg.supabaseKey && window.supabase
   ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey) : null;
 
 let lastTimestamp = null;
 let lastLocalFail = 0;
+let lastDeviceList = 0;
+let currentSource = null; // "local" or a cloud device_id
 
-function renderIfNew(m) {
+// "" = auto (local agent first, then the first cloud device), "*" = first cloud device, else a device_id.
+let selectedDevice = "";
+try { selectedDevice = localStorage.getItem(DEVICE_KEY) || ""; } catch (_) {}
+
+function setSelectedDevice(value) {
+  selectedDevice = value;
+  try { localStorage.setItem(DEVICE_KEY, value); } catch (_) {}
+}
+
+function renderIfNew(m, source) {
+  if (source !== currentSource) { // switched machine: drop the other machine's chart history
+    currentSource = source;
+    lastTimestamp = null;
+    for (const chart of charts) {
+      chart.data.labels = [];
+      for (const ds of chart.data.datasets) ds.data = [];
+    }
+  }
   if (m.timestamp === lastTimestamp) return; // same cloud snapshot polled twice
   lastTimestamp = m.timestamp;
   render(m);
+}
+
+function renderDeviceSelect(devices, signedIn) {
+  const opts = [["", "อัตโนมัติ (เครื่องนี้ก่อน)"], ...devices.map((d) => [d, d])];
+  if (!signedIn) opts.push(["*", "เครื่องอื่น (ต้องเข้าสู่ระบบ)"]);
+  if (!opts.some(([v]) => v === selectedDevice)) opts.push([selectedDevice, selectedDevice]);
+  const sel = $("device");
+  sel.replaceChildren(...opts.map(([v, text]) => el("option", { value: v }, text)));
+  sel.value = selectedDevice;
+  sel.hidden = false;
+}
+
+// Local mode: keep the device list fresh so other machines can be picked. Never fails the local poll.
+async function refreshDeviceList() {
+  if (Date.now() - lastDeviceList < DEVICE_LIST_MS) return;
+  lastDeviceList = Date.now();
+  try {
+    const { data: { session } } = await cloud.auth.getSession();
+    if (!session) return renderDeviceSelect([], false);
+    const { data, error } = await cloud.from("device_metrics").select("device_id").order("device_id");
+    if (error) throw new Error(error.message);
+    renderDeviceSelect(data.map((r) => r.device_id), true);
+  } catch (err) {
+    console.warn("device list failed:", err);
+  }
 }
 
 // state: local | cloud | cloud-stale | login | offline | cloud-error
@@ -285,7 +331,7 @@ function setState(state, detail = "") {
   $("status-text").textContent = {
     local: "เชื่อมต่อ agent (เครื่องนี้)",
     cloud: `ข้อมูลจาก cloud · ${detail}`,
-    "cloud-stale": "notebook ออฟไลน์",
+    "cloud-stale": "เครื่องออฟไลน์",
     login: "ต้องเข้าสู่ระบบ",
     offline: "ไม่พบ agent",
     "cloud-error": "ดึงข้อมูลจาก cloud ไม่สำเร็จ",
@@ -307,18 +353,25 @@ async function fetchLocal() {
 
 async function pollCloud() {
   const { data: { session } } = await cloud.auth.getSession();
-  if (!session) return setState("login");
+  if (!session) {
+    renderDeviceSelect([], false);
+    return setState("login");
+  }
   const { data, error } = await cloud.from("device_metrics")
-    .select("device_id, data, updated_at").order("updated_at", { ascending: false }).limit(1);
+    .select("device_id, data, updated_at").order("device_id");
   if (error) throw new Error(error.message);
   if (!data.length) {
     return setState("cloud-error", `บัญชี ${session.user.email} ยังไม่มีสิทธิ์ดูข้อมูล หรือ agent ยังไม่เคยส่งข้อมูลขึ้น cloud`);
   }
-  const row = data[0];
-  renderIfNew(row.data);
+  if (selectedDevice === "*") setSelectedDevice(data[0].device_id);
+  lastDeviceList = Date.now();
+  renderDeviceSelect(data.map((r) => r.device_id), true);
+  const row = selectedDevice ? data.find((r) => r.device_id === selectedDevice) : data[0];
+  if (!row) return setState("cloud-error", `ไม่พบข้อมูลของเครื่อง ${selectedDevice} — เลือกเครื่องอื่นจากรายการด้านบน`);
+  renderIfNew(row.data, row.device_id);
   const ageSec = (Date.now() - Date.parse(row.updated_at)) / 1000;
   if (ageSec > STALE_SEC) {
-    setState("cloud-stale", `ข้อมูลล่าสุดจาก ${row.device_id} เมื่อ ${new Date(row.updated_at).toLocaleString("th-TH")} — agent บน notebook อาจปิดอยู่หรือไม่มี internet`);
+    setState("cloud-stale", `ข้อมูลล่าสุดจาก ${row.device_id} เมื่อ ${new Date(row.updated_at).toLocaleString("th-TH")} — agent บน ${row.device_id} อาจปิดอยู่หรือไม่มี internet`);
   } else {
     setState("cloud", row.device_id);
   }
@@ -333,11 +386,12 @@ async function poll() {
   clearTimeout(pollTimer);
   let delay = POLL_MS;
   try {
-    const tryLocal = !cloud || Date.now() - lastLocalFail > LOCAL_RETRY_MS;
+    const tryLocal = !cloud || (selectedDevice === "" && Date.now() - lastLocalFail > LOCAL_RETRY_MS);
     if (tryLocal) {
       try {
-        renderIfNew(await fetchLocal());
+        renderIfNew(await fetchLocal(), "local");
         setState("local");
+        if (cloud) await refreshDeviceList();
         return;
       } catch (err) {
         console.warn("local agent not reachable:", err);
@@ -372,7 +426,14 @@ if (cloud) {
   $("logout").addEventListener("click", async () => {
     await cloud.auth.signOut();
     lastTimestamp = null;
+    lastDeviceList = 0;
+    renderDeviceSelect([], false);
     setState("login");
+  });
+  $("device").addEventListener("change", (e) => {
+    setSelectedDevice(e.target.value);
+    lastLocalFail = 0; // "auto" should try the local agent right away
+    poll();
   });
 }
 poll();

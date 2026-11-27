@@ -126,6 +126,12 @@ code, pre { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
   background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong);
 }
 .icon-btn:hover { border-color: var(--series-1); color: var(--series-1); }
+.device-select {
+  font: inherit; font-size: 12.5px; height: 32px; padding: 0 8px; border-radius: 8px; max-width: 180px;
+  background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong);
+}
+.device-select:hover, .device-select:focus { border-color: var(--series-1); }
+.device-select[hidden] { display: none; }
 .icon-sun { display: none; }
 .icon-moon { display: block; }
 :root[data-theme="dark"] .icon-sun { display: block; }
