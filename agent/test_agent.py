@@ -1,6 +1,8 @@
 import http.client
 import json
 import os
+import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -71,6 +73,31 @@ class AgentServerTest(unittest.TestCase):
     def test_metrics_with_query_string(self):
         resp, _ = self.request("GET", "/api/metrics?t=1")
         self.assertEqual(resp.status, 200)
+
+
+class NoConsoleTest(unittest.TestCase):
+    """pythonw.exe (Task Scheduler auto-start) runs with sys.stdout/sys.stderr = None."""
+
+    def test_requests_work_without_console(self):
+        log_path = os.path.join(tempfile.mkdtemp(), "agent.log")
+        with mock.patch.object(sys, "stdout", None), mock.patch.object(sys, "stderr", None):
+            log = agent.redirect_missing_streams(log_path)
+            server = agent.make_server(0)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
+                conn.request("GET", "/api/metrics")
+                self.assertEqual(conn.getresponse().status, 200)
+                conn.close()
+            finally:
+                server.shutdown()
+                server.server_close()
+                log.close()
+        with open(log_path, encoding="utf-8") as f:
+            self.assertIn("GET /api/metrics", f.read())
+
+    def test_keeps_existing_streams(self):
+        self.assertIsNone(agent.redirect_missing_streams(os.path.join(tempfile.mkdtemp(), "x.log")))
 
 
 class ProcessSnapshotTest(unittest.TestCase):

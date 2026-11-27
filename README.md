@@ -75,7 +75,10 @@ agent\register-autostart.ps1
 agent\unregister-autostart.ps1
 ```
 
-The task runs `pythonw.exe` (no console window) with the project root as working directory and reads `.env` automatically. It runs only when you are logged on and does **not** require elevated privileges.
+If PowerShell blocks the script (execution policy), run it with
+`powershell -ExecutionPolicy Bypass -File agent\register-autostart.ps1`.
+
+The task runs `pythonw.exe` (no console window) with the project root as working directory and reads `.env` automatically. It runs only when you are logged on, does **not** require elevated privileges, and restarts the agent up to 3 times if it crashes. Without a console, agent output goes to `agent\agent.log` (overwritten on each start).
 
 > **Note:** If you move the project folder, re-run `register-autostart.ps1` to update the paths.
 

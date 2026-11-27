@@ -14,7 +14,13 @@ if (-not (Test-Path $pythonw)) {
 }
 
 # Write task XML to a temp file (paths resolved to this machine).
-$tempXml = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.xml'
+$tempXml = Join-Path ([System.IO.Path]::GetTempPath()) "MonitorAgent-$([guid]::NewGuid()).xml"
+# Escape &, <, > etc. so unusual folder names cannot break the XML.
+$pythonwXml     = [System.Security.SecurityElement]::Escape($pythonw)
+$projectRootXml = [System.Security.SecurityElement]::Escape($projectRoot)
+# Bind trigger and principal to the current user: a logon trigger without a
+# UserId fires for any user and needs admin rights to register.
+$userXml = [System.Security.SecurityElement]::Escape([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
 
 @"
 <?xml version="1.0" encoding="UTF-16"?>
@@ -27,10 +33,12 @@ $tempXml = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.xml'
     <LogonTrigger>
       <Enabled>true</Enabled>
       <Delay>PT30S</Delay>
+      <UserId>$userXml</UserId>
     </LogonTrigger>
   </Triggers>
   <Principals>
     <Principal id="Author">
+      <UserId>$userXml</UserId>
       <LogonType>InteractiveToken</LogonType>
       <RunLevel>LeastPrivilege</RunLevel>
     </Principal>
@@ -53,12 +61,16 @@ $tempXml = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.xml'
     <WakeToRun>false</WakeToRun>
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
     <Priority>7</Priority>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>$pythonw</Command>
+      <Command>$pythonwXml</Command>
       <Arguments>-u agent/agent.py</Arguments>
-      <WorkingDirectory>$projectRoot</WorkingDirectory>
+      <WorkingDirectory>$projectRootXml</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>
@@ -74,6 +86,8 @@ if ($exitCode -eq 0) {
     Write-Host "The agent will start automatically 30 seconds after you log on."
     Write-Host "Command: $pythonw -u agent/agent.py"
     Write-Host "Working directory: $projectRoot"
+    Write-Host "Log file: $(Join-Path $projectRoot 'agent\agent.log')"
 } else {
     Write-Host "Failed to register MonitorAgent task (exit code $exitCode)." -ForegroundColor Red
 }
+exit $exitCode

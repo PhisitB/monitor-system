@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+agent/agent.log
 
 # Secrets / local config
 .env

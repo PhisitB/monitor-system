@@ -8,9 +8,11 @@ import argparse
 import json
 import platform
 import re
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import psutil
 
@@ -24,6 +26,7 @@ ALLOWED_ORIGINS = {"https://phisitb.github.io"}
 LOCAL_ORIGIN_RE = re.compile(r"^http://(localhost|127\.0\.0\.1)(:\d+)?$")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 TOP_N = 10
+LOG_FILE = Path(__file__).resolve().parent / "agent.log"  # used only when there is no console
 
 
 def origin_allowed(origin):
@@ -244,7 +247,22 @@ def make_server(port):
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
 
 
+def redirect_missing_streams(log_path):
+    """pythonw.exe has no console: sys.stdout/sys.stderr are None, and http.server's
+    request logging then raises on every request. Send missing streams to a log file
+    (overwritten on each start). Returns the opened file, or None if nothing was missing."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return None
+    log = open(log_path, "w", encoding="utf-8", buffering=1)
+    if sys.stdout is None:
+        sys.stdout = log
+    if sys.stderr is None:
+        sys.stderr = log
+    return log
+
+
 def main():
+    redirect_missing_streams(LOG_FILE)
     parser = argparse.ArgumentParser(description="Local metrics agent for Monitor System dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"port (default {DEFAULT_PORT})")
     args = parser.parse_args()

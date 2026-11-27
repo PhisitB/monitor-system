@@ -1,8 +1,0 @@
-# agent/start-agent.xml — not committed; generated at registration time.
-#
-# Run agent/register-autostart.ps1 to create and register the Windows
-# Task Scheduler task on the current machine. The script resolves all paths
-# (pythonw.exe, working directory) at runtime so no machine-specific paths
-# are stored in the repository.
-#
-# See README.md > Auto-start (Windows) for instructions.
