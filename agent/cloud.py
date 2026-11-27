@@ -5,6 +5,7 @@ in the repo root). The secret key bypasses Row Level Security: keep it in .env
 on this machine only, never in the repo or the web page.
 """
 
+import http.client
 import json
 import os
 import threading
@@ -60,7 +61,7 @@ class SupabasePusher:
                 self.push_once()
             except urllib.error.HTTPError as e:
                 self._report_failure(f"HTTP {e.code}: {e.read(300).decode(errors='replace')}")
-            except (urllib.error.URLError, TimeoutError, OSError) as e:
+            except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as e:
                 self._report_failure(str(e))
             else:
                 if self._failing:
@@ -87,7 +88,7 @@ def pusher_from_env(collector):
     if not url or not key:
         print("[cloud] SUPABASE_URL / SUPABASE_SECRET_KEY not set: cloud push disabled (local only)")
         return None
-    device_id = os.environ.get("DEVICE_ID", "notebook")
+    device_id = os.environ.get("DEVICE_ID") or "notebook"
     pusher = SupabasePusher(collector, url, key, device_id)
     try:
         pusher.push_once()
@@ -95,7 +96,7 @@ def pusher_from_env(collector):
     except urllib.error.HTTPError as e:
         print(f"[cloud] first push failed: HTTP {e.code}: {e.read(300).decode(errors='replace')}")
         pusher._failing = True
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
+    except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as e:
         print(f"[cloud] first push failed: {e}")
         pusher._failing = True
     pusher.start()

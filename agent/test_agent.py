@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import unittest
+from unittest import mock
 
 import psutil
 
@@ -67,6 +68,10 @@ class AgentServerTest(unittest.TestCase):
         resp, _ = self.request("GET", "/other")
         self.assertEqual(resp.status, 404)
 
+    def test_metrics_with_query_string(self):
+        resp, _ = self.request("GET", "/api/metrics?t=1")
+        self.assertEqual(resp.status, 200)
+
 
 class ProcessSnapshotTest(unittest.TestCase):
     def test_own_process_present_with_matching_rss(self):
@@ -106,6 +111,18 @@ class ProcessSnapshotTest(unittest.TestCase):
         start = time.monotonic()
         collector.collect()
         self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_collector_handles_missing_optional_sensors(self):
+        with mock.patch.object(agent.psutil, "sensors_battery", return_value=None), \
+             mock.patch.object(agent.psutil, "disk_io_counters", return_value=None), \
+             mock.patch.object(agent.psutil, "net_io_counters", return_value=None), \
+             mock.patch.object(agent.psutil, "cpu_freq", return_value=None):
+            data = agent.MetricsCollector().collect()
+        self.assertIsNone(data["battery"])
+        self.assertIsNone(data["disk_io"])
+        self.assertIsNone(data["network"])
+        self.assertIsNone(data["cpu"]["freq_mhz"])
+        self.assertIsNone(data["cpu"]["freq_max_mhz"])
 
 
 class OriginTest(unittest.TestCase):

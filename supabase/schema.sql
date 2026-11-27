@@ -7,6 +7,25 @@ create table if not exists public.device_metrics (
   updated_at timestamptz not null default now()
 );
 
+-- Always stamp updated_at with server time on insert/update so stale detection
+-- does not depend on the reporting device's local clock.
+create or replace function public.set_device_metrics_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists device_metrics_set_updated_at on public.device_metrics;
+create trigger device_metrics_set_updated_at
+  before insert or update on public.device_metrics
+  for each row
+  execute function public.set_device_metrics_updated_at();
+
 -- Emails allowed to read metrics. Add rows in Table Editor (never commit emails to the repo):
 --   insert into public.allowed_viewers (email) values ('you@example.com');
 create table if not exists public.allowed_viewers (

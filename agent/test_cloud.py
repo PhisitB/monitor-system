@@ -1,3 +1,4 @@
+import http.client
 import json
 import os
 import tempfile
@@ -6,6 +7,7 @@ import unittest
 import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
 import cloud
 
@@ -67,6 +69,25 @@ class PusherTest(unittest.TestCase):
         FakeSupabase.status = 401
         with self.assertRaises(urllib.error.HTTPError):
             cloud.SupabasePusher(FakeCollector(), self.url, "bad", "nb1").push_once()
+
+    def test_run_survives_http_exception_and_recovers(self):
+        pusher = cloud.SupabasePusher(FakeCollector(), self.url, "sb_secret_x", "nb1")
+        with mock.patch.object(pusher, "push_once", side_effect=[http.client.RemoteDisconnected("closed"), None]) as push, \
+             mock.patch.object(pusher._stop, "wait", side_effect=[False, False, True]):
+            pusher._run()
+        self.assertEqual(push.call_count, 2)
+        self.assertFalse(pusher._failing)
+
+    def test_pusher_from_env_empty_device_id_defaults_to_notebook(self):
+        env = {"SUPABASE_URL": self.url, "SUPABASE_SECRET_KEY": "sb_secret_x", "DEVICE_ID": ""}
+        with mock.patch.object(cloud, "load_env"), mock.patch.dict(os.environ, env, clear=True):
+            pusher = cloud.pusher_from_env(FakeCollector())
+            try:
+                self.assertIsNotNone(pusher)
+                self.assertEqual(pusher.device_id, "notebook")
+                self.assertEqual(FakeSupabase.requests[0]["body"]["device_id"], "notebook")
+            finally:
+                pusher.stop()
 
 
 class LoadEnvTest(unittest.TestCase):

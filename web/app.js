@@ -144,11 +144,12 @@ function render(m) {
       bar(d.percent, crit));
   }));
 
+  const maxGhz = m.cpu.freq_max_mhz > 0 ? ` (max ${(m.cpu.freq_max_mhz / 1000).toFixed(2)} GHz)` : "";
   renderKV($("sysinfo"), [
     ["OS", `${m.system.os} (${m.system.os_version})`],
     ["CPU", m.system.cpu_model || "–"],
-    ["Cores", `${m.cpu.cores_physical} physical / ${m.cpu.cores_logical} logical`],
-    ["Clock", m.cpu.freq_mhz ? `${(m.cpu.freq_mhz / 1000).toFixed(2)} GHz (max ${(m.cpu.freq_max_mhz / 1000).toFixed(2)} GHz)` : "–"],
+    ["Cores", `${m.cpu.cores_physical ?? "–"} physical / ${m.cpu.cores_logical ?? "–"} logical`],
+    ["Clock", m.cpu.freq_mhz ? `${(m.cpu.freq_mhz / 1000).toFixed(2)} GHz${maxGhz}` : "–"],
     ["Uptime", fmtDuration(m.system.uptime_sec)],
     ["เปิดเครื่องเมื่อ", new Date(m.system.boot_time * 1000).toLocaleString("th-TH")],
   ]);
@@ -226,7 +227,13 @@ async function pollCloud() {
   }
 }
 
+let pollTimer = null;
+let polling = false;
+
 async function poll() {
+  if (polling) return;
+  polling = true;
+  clearTimeout(pollTimer);
   let delay = POLL_MS;
   try {
     const tryLocal = !cloud || Date.now() - lastLocalFail > LOCAL_RETRY_MS;
@@ -247,11 +254,15 @@ async function poll() {
     console.error("cloud poll failed:", err);
     setState("cloud-error", err.message);
   } finally {
-    setTimeout(poll, delay);
+    polling = false;
+    pollTimer = setTimeout(poll, delay);
   }
 }
 
 if (cloud) {
+  cloud.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN") poll();
+  });
   $("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = $("login-email").value.trim();
@@ -279,11 +290,16 @@ async function timed(fn) {
   return (performance.now() - t0) / 1000;
 }
 
+const SPEED_PING_TIMEOUT_MS = 10_000;
+const SPEED_TRANSFER_TIMEOUT_MS = 30_000;
+
 async function measurePing() {
   const samples = [];
   for (let i = 0; i < 8; i++) {
     samples.push(await timed(async () => {
-      const r = await fetch(`${SPEED_URL}/__down?bytes=0&r=${Math.random()}`, { cache: "no-store" });
+      const r = await fetch(`${SPEED_URL}/__down?bytes=0&r=${Math.random()}`, {
+        cache: "no-store", signal: AbortSignal.timeout(SPEED_PING_TIMEOUT_MS),
+      });
       await r.arrayBuffer();
     }));
   }
@@ -302,13 +318,17 @@ async function measureThroughput(transfer, maxBytes) {
 }
 
 async function download(bytes) {
-  const r = await fetch(`${SPEED_URL}/__down?bytes=${bytes}&r=${Math.random()}`, { cache: "no-store" });
+  const r = await fetch(`${SPEED_URL}/__down?bytes=${bytes}&r=${Math.random()}`, {
+    cache: "no-store", signal: AbortSignal.timeout(SPEED_TRANSFER_TIMEOUT_MS),
+  });
   if (!r.ok) throw new Error(`download HTTP ${r.status}`);
   await r.arrayBuffer();
 }
 
 async function upload(bytes) {
-  const r = await fetch(`${SPEED_URL}/__up?r=${Math.random()}`, { method: "POST", body: new Uint8Array(bytes), cache: "no-store" });
+  const r = await fetch(`${SPEED_URL}/__up?r=${Math.random()}`, {
+    method: "POST", body: new Uint8Array(bytes), cache: "no-store", signal: AbortSignal.timeout(SPEED_TRANSFER_TIMEOUT_MS),
+  });
   if (!r.ok) throw new Error(`upload HTTP ${r.status}`);
   await r.arrayBuffer();
 }

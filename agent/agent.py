@@ -226,7 +226,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self._reject_if_bad_request():
             return
-        if self.path != "/api/metrics":
+        if self.path.split("?", 1)[0] != "/api/metrics":
             self.send_error(404, "Not found")
             return
         body = json.dumps(self.collector.collect()).encode()
@@ -249,7 +249,8 @@ def main():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"port (default {DEFAULT_PORT})")
     args = parser.parse_args()
     server = make_server(args.port)
-    pusher = cloud.pusher_from_env(Handler.collector)
+    # Separate collector so 5 s cloud pushes and 2 s local polls don't steal each other's deltas.
+    pusher = cloud.pusher_from_env(MetricsCollector())
     print(f"Agent running at http://127.0.0.1:{args.port}/api/metrics  (Ctrl+C to stop)")
     try:
         server.serve_forever()
