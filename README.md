@@ -87,6 +87,9 @@ The task runs `pythonw.exe` (no console window) with the project root as working
 The same agent runs on Windows Server. View it through cloud mode — never expose port 8765 to the internet.
 
 1. Install Python 3.12 and Git on the server, then clone the repo and set up the venv as above.
+   On **Windows Server 2012 R2** use Python 3.12.10 (newer installers need Server 2016+) and
+   Git for Windows 2.55.0(5) (the last release supporting it). PowerShell 4 needs `.\` before
+   relative paths, e.g. `.\.venv\Scripts\python.exe agent\agent.py`.
 2. Create `.env` with `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and a **unique** `DEVICE_ID` (e.g. `DEVICE_ID=vps`).
    Each machine needs its own `DEVICE_ID`, otherwise they overwrite each other's row.
 3. Allow outbound HTTPS to `*.supabase.co` in the server firewall.

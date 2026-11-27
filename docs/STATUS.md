@@ -58,11 +58,17 @@ _Last updated: 2026-11-27_
       ตรวจแล้ว: register (ไม่ต้อง admin) + `schtasks /run` → agent ตอบ 200 ที่ 8765, CORS/PNA preflight ผ่าน, log เขียนลงไฟล์
       เหลือ: ยืนยันหลัง sign out / sign in จริง (trigger หน่วง 30 s)
 - [ ] ทดสอบ speedtest ใน browser จริง (endpoint CORS ตรวจด้วย curl แล้ว แต่ยังไม่ได้กดใน browser)
-- [ ] ติดตั้งและทดสอบบน VPS Windows Server จริง (`register-autostart-server.ps1` ยังไม่เคยรันจริง — ตรวจแค่ syntax/XML)
-- [ ] ทดสอบตัวเลือกเครื่องกับ Supabase จริงเมื่อมี 2 เครื่อง push พร้อมกัน
+- [x] ติดตั้งบน VPS Windows Server 2012 R2 (Python 3.12.10, Git 2.55.0(5)) ตาม 6 ขั้นตอนใน README;
+      ตรวจจาก Supabase แล้วว่า `notebook` และ VPS push ทุก ~5 s พร้อมกัน (2026-11-27)
+- [ ] ยืนยันด้วยตาว่าสลับเครื่องใน dropdown บน dashboard จริงแล้วข้อมูลถูกเครื่อง
+- [ ] พิจารณาให้ task บน VPS รันด้วย user ที่ไม่ใช่ Administrator
 - [ ] ทดสอบ agent บน macOS (ยังไม่ได้ทดสอบ — path ที่ไม่ใช่ Windows ใช้ psutil ล้วน)
 
 ## Known limitations
+- Windows Server 2012 R2: ใช้ได้สูงสุด Python 3.12.10 (3.14 ต้อง Server 2016+) และ Git for Windows 2.55.0(5)
+  (2.56+ เลิกรองรับ 8.1/2012 R2 — ห้ามอัปเดต Git); OS หมด security update แล้วเว้นแต่มี ESU
+- PowerShell 4 (2012 R2) ต้องใส่ `.\` หน้า path ที่เรียกไฟล์ เช่น `.\.venv\Scripts\python.exe`
+- Supabase ปฏิเสธ secret key ถ้า User-Agent ดูเหมือน browser (เช่น `Invoke-RestMethod` ของ PowerShell) — ใช้ `-UserAgent`
 - CPU clock บน Windows: psutil รายงานแค่ base clock (ไม่ใช่ turbo/ปัจจุบันจริง)
 - Safari อาจบล็อกการเรียก `http://127.0.0.1` จากหน้า https (ใช้ Chrome/Edge/Firefox) — ไม่กระทบ cloud mode
 - Browser ในแอป (เช่นเปิดลิงก์จาก LINE) อาจ cache หน้าเก่า: หลัง deploy ให้เปิดใน Safari/Chrome หรือเติม `?v=<n>`
