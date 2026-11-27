@@ -46,7 +46,7 @@ _Last updated: 2026-11-27_
 - [ ] รันส่วน trigger `device_metrics_set_updated_at` ใน `supabase/schema.sql` บน Supabase SQL Editor เพื่อให้อัปเดต `updated_at` ด้วยเวลา server
 - [ ] ยืนยันว่า dashboard จาก github.io ต่อ local agent ได้ใน browser จริงบน notebook
       (agent log เห็น request เข้ามาทุก ~3 s แต่ยังไม่ได้ยืนยันจากหน้าจอ)
-- [ ] ให้ agent เริ่มเองตอนเปิดเครื่อง (ตอนนี้ต้องรัน `python agent/agent.py` เอง)
+- [x] ให้ agent เริ่มเองตอนเปิดเครื่อง — Windows Task Scheduler task (`agent/start-agent.xml`) + helper scripts (`agent/register-autostart.ps1`, `agent/unregister-autostart.ps1`) (2026-11-27)
 - [ ] ทดสอบ speedtest ใน browser จริง (endpoint CORS ตรวจด้วย curl แล้ว แต่ยังไม่ได้กดใน browser)
 - [ ] ทดสอบ agent บน macOS (ยังไม่ได้ทดสอบ — path ที่ไม่ใช่ Windows ใช้ psutil ล้วน)
 

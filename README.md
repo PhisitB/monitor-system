@@ -63,6 +63,22 @@ cd agent
 ..\.venv\Scripts\python -m unittest -v
 ```
 
+## Auto-start (Windows)
+
+To have the agent start automatically 30 seconds after you log on, register the included Task Scheduler task:
+
+```powershell
+# Register (run once; safe to re-run)
+agent\register-autostart.ps1
+
+# Remove
+agent\unregister-autostart.ps1
+```
+
+The task runs `pythonw.exe` (no console window) with the project root as working directory and reads `.env` automatically. It runs only when you are logged on and does **not** require elevated privileges.
+
+> **Note:** If you move the project folder, re-run `register-autostart.ps1` to update the paths.
+
 ## Security notes
 
 - The agent binds to `127.0.0.1` only and is read-only.
